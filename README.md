@@ -1,5 +1,7 @@
 # alstat
 
+[![CircleCI](https://circleci.com/gh/krtx/alstat.svg?style=svg)](https://circleci.com/gh/krtx/alstat)
+
 Provide access summary of your ltsv log file.
 
 ## Description
