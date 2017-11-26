@@ -3,6 +3,7 @@ package main
 import (
 	"math/rand"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -18,7 +19,7 @@ func RandomString(n int) string {
 }
 
 func TestTail1(t *testing.T) {
-	testFile := os.TempDir() + "/alstat-test-teail" + RandomString(8)
+	testFile := filepath.Join(os.TempDir(), "alstat-test-teail"+RandomString(8))
 
 	f, err := os.Create(testFile)
 	if err != nil {
