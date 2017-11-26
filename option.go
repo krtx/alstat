@@ -14,6 +14,7 @@ type Options struct {
 	n              int
 	labels         []string
 	labelRegexps   []*regexp.Regexp
+	sumLabels      []string
 	printSeparator bool
 	printRate      bool
 	interval       int
@@ -36,6 +37,7 @@ func (i *arrayFlags) Set(v string) error {
 
 func (opt *Options) Load() {
 	ls := arrayFlags{}
+	sumLabels := arrayFlags{}
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] LOGFILE\n", os.Args[0])
@@ -43,9 +45,10 @@ func (opt *Options) Load() {
 	}
 
 	flag.IntVar(&opt.n, "n", 1000, "number of lines to tail")
-	flag.BoolVar(&opt.printSeparator, "s", false, "print separator")
-	flag.BoolVar(&opt.printRate, "r", false, "print rate")
+	flag.BoolVar(&opt.printSeparator, "sep", false, "print separator")
+	flag.BoolVar(&opt.printRate, "rate", false, "print rate")
 	flag.Var(&ls, "l", "labels")
+	flag.Var(&sumLabels, "sum", "labels to sum up their values")
 	flag.IntVar(&opt.interval, "c", 1, "interval")
 
 	flag.Parse()
@@ -87,10 +90,15 @@ func (opt *Options) Load() {
 		}
 	}
 
+	opt.sumLabels = make([]string, len(sumLabels))
+	for i, _ := range sumLabels {
+		opt.sumLabels[i] = sumLabels[i]
+	}
+
 	fmt.Printf("%v\n", opt)
 
 	if len(opt.labels) < 1 || opt.n <= 0 {
-		flag.PrintDefaults()
+		flag.Usage()
 		os.Exit(1)
 	}
 }

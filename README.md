@@ -6,21 +6,21 @@ Provide access summary of your ltsv log file.
 
 ## Description
 
-`alstat` parse ltsv files and show the summary. 
+`alstat` parses ltsv files and show the summary. 
 
 ## Example
 
 ```
 $ cat test.log
-method:GET	status:404	path: /status?id=79
-method:GET	status:404	path: /profile?id=53
-method:GET	status:200	path: /profile?id=90
-method:POST	status:404	path: /status?id=86
-method:POST	status:200	path: /profile?id=2
+method:POST	status:200	path:/profile?id=49	reqtime_microsec:7583
+method:POST	status:404	path:/profile?id=4	reqtime_microsec:8931
+method:GET	status:404	path:/status?id=40	reqtime_microsec:1735
+method:POST	status:404	path:/profile?id=10	reqtime_microsec:9546
+method:GET	status:200	path:/status?id=77	reqtime_microsec:9515
 ...
 ```
 
-Specify a label to show access counts.
+Use `-l` to specify a label to show access counts.
 
 ```
 $ alstat -c 0 -l 'method' ./test.log
@@ -42,8 +42,7 @@ POST    200         24
 POST    404         36
 ```
 
-As an advanced usage, regexps can be specified to extract a part of
-the value.
+Regexps can be used to extract a part of the values.
 
 ```
 $ alstat -c 0 -l 'path:(/profile|/status)' ./test.log
@@ -53,11 +52,11 @@ path      access
 /status       41
 ```
 
-The first label can be used as a primary label: `-s` separates them
-and `-r` prints rates for each lines within the primary label.
+The first label can be used as a primary label: `-sep` separates them
+and `-rate` prints rates for each lines within the primary label.
 
 ```
-$ alstat -s -r -c 0 -l 'path:(/profile|/status)' -l status ./test.log
+$ alstat -sep -rate -c 0 -l 'path:(/profile|/status)' -l status ./test.log
 path      status  access   (rate)
 ---------------------------------
 /profile  200         24   40.68%
@@ -65,6 +64,14 @@ path      status  access   (rate)
 ---------------------------------
 /status   200         18   43.90%
 /status   404         23   56.10%
+```
+
+```
+$ alstat -sum 'reqtime_microsec' -l 'path' ./test.log
+path  access reqtime_microsec
+-----------------------------
+/profile 100 21039
+/status  200 123129
 ```
 
 `-c` specify the display interval in seconds and `-c 0` means to print
