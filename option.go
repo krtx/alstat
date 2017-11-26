@@ -12,9 +12,9 @@ import (
 type Options struct {
 	logName        string
 	n              int
-	labels         []string
-	labelRegexps   []*regexp.Regexp
+	keyLabels      []string
 	sumLabels      []string
+	keyRegexps     []*regexp.Regexp // used to extract keys
 	printSeparator bool
 	printRate      bool
 	interval       int
@@ -23,11 +23,7 @@ type Options struct {
 type arrayFlags []string
 
 func (i *arrayFlags) String() string {
-	if i == nil {
-		return ""
-	} else {
-		return strings.Join(*i, ",")
-	}
+	return ""
 }
 
 func (i *arrayFlags) Set(v string) error {
@@ -44,12 +40,12 @@ func (opt *Options) Load() {
 		flag.PrintDefaults()
 	}
 
-	flag.IntVar(&opt.n, "n", 1000, "number of lines to tail")
+	flag.IntVar(&opt.n, "n", 1000, "number of tail lines to read")
 	flag.BoolVar(&opt.printSeparator, "sep", false, "print separator")
 	flag.BoolVar(&opt.printRate, "rate", false, "print rate")
-	flag.Var(&ls, "l", "labels")
-	flag.Var(&sumLabels, "sum", "labels to sum up their values")
-	flag.IntVar(&opt.interval, "c", 1, "interval")
+	flag.Var(&ls, "l", "labels (-l can be used multiple times)")
+	flag.Var(&sumLabels, "sum", "labels to sum up their values (-s can be used multiple times)")
+	flag.IntVar(&opt.interval, "c", 1, "interval seconds")
 
 	flag.Parse()
 
@@ -60,26 +56,26 @@ func (opt *Options) Load() {
 
 	opt.logName = flag.Args()[0]
 
-	opt.labels = make([]string, len(ls))
-	opt.labelRegexps = make([]*regexp.Regexp, len(ls))
+	opt.keyLabels = make([]string, len(ls))
+	opt.keyRegexps = make([]*regexp.Regexp, len(ls))
 	for i, l := range ls {
 		pos := strings.IndexRune(l, ':')
 		if pos == -1 {
-			opt.labels[i] = l
+			opt.keyLabels[i] = l
 		} else {
-			opt.labels[i] = l[:pos]
+			opt.keyLabels[i] = l[:pos]
 			re, err := regexp.Compile(l[pos+1:])
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error: %s\n", err)
 				os.Exit(1)
 			}
-			opt.labelRegexps[i] = re
+			opt.keyRegexps[i] = re
 		}
 	}
 
-	// reject repeated labels
-	s := make([]string, len(opt.labels))
-	copy(s, opt.labels)
+	// reject repeated keyLabels
+	s := make([]string, len(opt.keyLabels))
+	copy(s, opt.keyLabels)
 	sort.Strings(s)
 	for i := 0; i < len(s)-1; i++ {
 		if s[i] == s[i+1] {
@@ -95,9 +91,7 @@ func (opt *Options) Load() {
 		opt.sumLabels[i] = sumLabels[i]
 	}
 
-	fmt.Printf("%v\n", opt)
-
-	if len(opt.labels) < 1 || opt.n <= 0 {
+	if len(opt.keyLabels) < 1 || opt.n <= 0 {
 		flag.Usage()
 		os.Exit(1)
 	}

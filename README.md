@@ -6,7 +6,7 @@ Provide access summary of your ltsv log file.
 
 ## Description
 
-`alstat` parses ltsv files and show the summary. 
+`alstat` parses the tail lines of given ltsv files and prints the summary.
 
 ## Example
 
@@ -66,15 +66,20 @@ path      status  access   (rate)
 /status   404         23   56.10%
 ```
 
+`-sum` sums up the specified fields.
+
 ```
-$ alstat -sum 'reqtime_microsec' -l 'path' ./test.log
-path  access reqtime_microsec
------------------------------
-/profile 100 21039
-/status  200 123129
+./alstat -sep -rate -c 0 -l method -l status -sum reqtime_microsec test.log
+method  status  access   (rate)  sum(reqtime_microsec)
+------------------------------------------------------
+GET     200         31   58.49%                 155181
+GET     404         22   41.51%                 125124
+------------------------------------------------------
+POST    200         21   44.68%                  95786
+POST    404         26   55.32%                 134721
 ```
 
-`-c` specify the display interval in seconds and `-c 0` means to print
+`-c` specifies the display interval in seconds and `-c 0` means to print
 just once.  The default value is 1.
 
 ```

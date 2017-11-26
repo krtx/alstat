@@ -4,59 +4,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sort"
-	"strconv"
-	"strings"
 	"time"
 )
-
-type Access struct {
-	// field[0] は primary field として特別扱いされることがある
-	fields []string
-	index  int
-}
-
-type ByFields []Access
-
-func (b ByFields) Len() int      { return len(b) }
-func (b ByFields) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
-func (b ByFields) Less(i, j int) bool {
-	// dictionary order
-	for k, _ := range b[i].fields {
-		if b[i].fields[k] != b[j].fields[k] {
-			return b[i].fields[k] < b[j].fields[k]
-		}
-	}
-	return false
-}
-
-type AccessAggregation struct {
-	keys   []Access
-	counts []int
-	sums   [][]int
-}
-
-func (a *AccessAggregation) Add(key []string, sums []int) {
-	for i, k := range a.keys {
-		// key exists
-		if EqSlices(k.fields, key) {
-			a.counts[i]++
-			for j, sum := range sums {
-				a.sums[i][j] += sum
-			}
-			return
-		}
-	}
-
-	// key does not exist
-	a.keys = append(a.keys, Access{fields: key, index: len(a.keys)})
-	a.counts = append(a.counts, 1)
-	a.sums = append(a.sums, sums)
-}
-
-func (a *AccessAggregation) Sort() {
-	sort.Sort(ByFields(a.keys))
-}
 
 func PrintOnce(opt Options) {
 	lines, err := Tail(opt.logName, opt.n)
@@ -68,46 +17,15 @@ func PrintOnce(opt Options) {
 		panic(err)
 	}
 
+	// aggregate accesses
 	acc := AccessAggregation{}
-
 	for _, line := range lines {
-		key := make([]string, len(opt.labels))
-		sums := make([]int, len(opt.sumLabels))
-		for _, lvalue := range strings.Split(line, "\t") {
-			pos := strings.IndexRune(lvalue, ':')
-			if pos == -1 {
-				// ignore broken values
-				continue
-			}
-
-			// construct the key
-			for i, label := range opt.labels {
-				if label == lvalue[:pos] {
-					if opt.labelRegexps[i] != nil {
-						key[i] = opt.labelRegexps[i].FindString(lvalue[pos+1:])
-					} else {
-						key[i] = lvalue[pos+1:]
-					}
-					break
-				}
-			}
-
-			// collect sums
-			for i, label := range opt.sumLabels {
-				if label == lvalue[:pos] {
-					if s, err := strconv.Atoi(lvalue[pos+1:]); err == nil {
-						sums[i] = s
-					}
-				}
-			}
-		}
-
-		acc.Add(key, sums)
+		acc.AddLine(opt, line)
 	}
 
 	// calculate width
-	width := make([]int, len(opt.labels))
-	for i, label := range opt.labels {
+	width := make([]int, len(opt.keyLabels))
+	for i, label := range opt.keyLabels {
 		width[i] = len(label)
 	}
 	for _, key := range acc.keys {
@@ -156,7 +74,7 @@ func PrintOnce(opt Options) {
 	}
 
 	// print labels
-	for i, label := range opt.labels {
+	for i, label := range opt.keyLabels {
 		fmt.Printf("%-*s  ", width[i], label)
 	}
 	fmt.Printf("access")
@@ -201,9 +119,8 @@ func PrintOnce(opt Options) {
 	}
 }
 
-var opt Options
-
 func main() {
+	var opt Options
 	opt.Load()
 
 	sigc := make(chan os.Signal, 1)
