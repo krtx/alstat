@@ -69,7 +69,7 @@ path      status  access   (rate)
 `-sum` sums up the specified fields.
 
 ```
-./alstat -sep -rate -c 0 -l method -l status -sum reqtime_microsec test.log
+$ alstat -sep -rate -c 0 -l method -l status -sum reqtime_microsec test.log
 method  status  access   (rate)  sum(reqtime_microsec)
 ------------------------------------------------------
 GET     200         31   58.49%                 155181
