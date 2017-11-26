@@ -6,21 +6,21 @@ Provide access summary of your ltsv log file.
 
 ## Description
 
-`alstat` parse ltsv files and show the summary. 
+`alstat` parses the tail lines of given ltsv files and prints the summary.
 
 ## Example
 
 ```
 $ cat test.log
-method:GET	status:404	path: /status?id=79
-method:GET	status:404	path: /profile?id=53
-method:GET	status:200	path: /profile?id=90
-method:POST	status:404	path: /status?id=86
-method:POST	status:200	path: /profile?id=2
+method:POST	status:200	path:/profile?id=49	reqtime_microsec:7583
+method:POST	status:404	path:/profile?id=4	reqtime_microsec:8931
+method:GET	status:404	path:/status?id=40	reqtime_microsec:1735
+method:POST	status:404	path:/profile?id=10	reqtime_microsec:9546
+method:GET	status:200	path:/status?id=77	reqtime_microsec:9515
 ...
 ```
 
-Specify a label to show access counts.
+Use `-l` to specify a label to show access counts.
 
 ```
 $ alstat -c 0 -l 'method' ./test.log
@@ -42,8 +42,7 @@ POST    200         24
 POST    404         36
 ```
 
-As an advanced usage, regexps can be specified to extract a part of
-the value.
+Regexps can be used to extract a part of the values.
 
 ```
 $ alstat -c 0 -l 'path:(/profile|/status)' ./test.log
@@ -53,11 +52,11 @@ path      access
 /status       41
 ```
 
-The first label can be used as a primary label: `-s` separates them
-and `-r` prints rates for each lines within the primary label.
+The first label can be used as a primary label: `-sep` separates them
+and `-rate` prints rates for each lines within the primary label.
 
 ```
-$ alstat -s -r -c 0 -l 'path:(/profile|/status)' -l status ./test.log
+$ alstat -sep -rate -c 0 -l 'path:(/profile|/status)' -l status ./test.log
 path      status  access   (rate)
 ---------------------------------
 /profile  200         24   40.68%
@@ -67,7 +66,20 @@ path      status  access   (rate)
 /status   404         23   56.10%
 ```
 
-`-c` specify the display interval in seconds and `-c 0` means to print
+`-sum` sums up the specified fields.
+
+```
+./alstat -sep -rate -c 0 -l method -l status -sum reqtime_microsec test.log
+method  status  access   (rate)  sum(reqtime_microsec)
+------------------------------------------------------
+GET     200         31   58.49%                 155181
+GET     404         22   41.51%                 125124
+------------------------------------------------------
+POST    200         21   44.68%                  95786
+POST    404         26   55.32%                 134721
+```
+
+`-c` specifies the display interval in seconds and `-c 0` means to print
 just once.  The default value is 1.
 
 ```

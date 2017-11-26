@@ -4,30 +4,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sort"
-	"strings"
 	"time"
 )
-
-type Access struct {
-	// field[0] は primary field として特別扱いされることがある
-	fields []string
-	index  int
-}
-
-type ByFields []Access
-
-func (b ByFields) Len() int      { return len(b) }
-func (b ByFields) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
-func (b ByFields) Less(i, j int) bool {
-	// dictionary order
-	for k, _ := range b[i].fields {
-		if b[i].fields[k] != b[j].fields[k] {
-			return b[i].fields[k] < b[j].fields[k]
-		}
-	}
-	return false
-}
 
 func PrintOnce(opt Options) {
 	lines, err := Tail(opt.logName, opt.n)
@@ -39,66 +17,36 @@ func PrintOnce(opt Options) {
 		panic(err)
 	}
 
-	countLabels := make([]int, 0)
-	accs := make([]Access, 0)
+	// aggregate accesses
+	acc := AccessAggregation{}
 	for _, line := range lines {
-		fields := make([]string, len(opt.labels))
-
-		for _, lvalue := range strings.Split(line, "\t") {
-			pos := strings.IndexRune(lvalue, ':')
-			if pos == -1 {
-				// ignore broken values
-				continue
-			}
-			for i, label := range opt.labels {
-				if label == lvalue[:pos] {
-					if opt.labelRegexps[i] != nil {
-						fields[i] = opt.labelRegexps[i].FindString(lvalue[pos+1:])
-					} else {
-						fields[i] = lvalue[pos+1:]
-					}
-					break
-				}
-			}
-		}
-
-		keyExists := false
-		for i, k := range accs {
-			if EqSlices(k.fields, fields) {
-				countLabels[i]++
-				keyExists = true
-				break
-			}
-		}
-
-		if !keyExists {
-			accs = append(accs, Access{fields: fields, index: len(accs)})
-			countLabels = append(countLabels, 1)
-		}
+		acc.AddLine(opt, line)
 	}
 
 	// calculate width
-	width := make([]int, len(opt.labels))
-	for i, label := range opt.labels {
-		if width[i] < len(label) {
-			width[i] = len(label)
-		}
+	width := make([]int, len(opt.keyLabels))
+	for i, label := range opt.keyLabels {
+		width[i] = len(label)
 	}
-	for _, acc := range accs {
-		for i, f := range acc.fields {
+	for _, key := range acc.keys {
+		for i, f := range key.fields {
 			if width[i] < len(f) {
 				width[i] = len(f)
 			}
 		}
 	}
+	widthSums := make([]int, len(opt.sumLabels))
+	for i, label := range opt.sumLabels {
+		widthSums[i] = len(label) + 5
+	}
 
-	// calculate totals
+	// calculate totals within each primary category
 	totals := make(map[string]int)
-	for i, acc := range accs {
-		if _, ok := totals[acc.fields[0]]; !ok {
-			totals[acc.fields[0]] = 0
+	for i, key := range acc.keys {
+		if _, ok := totals[key.fields[0]]; !ok {
+			totals[key.fields[0]] = 0
 		}
-		totals[acc.fields[0]] += countLabels[i]
+		totals[key.fields[0]] += acc.counts[i]
 	}
 
 	// make separator
@@ -109,13 +57,16 @@ func PrintOnce(opt Options) {
 	if opt.printRate {
 		sepLength += 9
 	}
+	for _, w := range widthSums {
+		sepLength += w + 2
+	}
 	var separatorBytes = make([]byte, sepLength)
 	for i := 0; i < sepLength; i++ {
 		separatorBytes[i] = '-'
 	}
 	separator := string(separatorBytes)
 
-	sort.Sort(ByFields(accs))
+	acc.Sort()
 
 	// clear screen
 	if opt.interval >= 1 {
@@ -123,49 +74,53 @@ func PrintOnce(opt Options) {
 	}
 
 	// print labels
-	for i, label := range opt.labels {
+	for i, label := range opt.keyLabels {
 		fmt.Printf("%-*s  ", width[i], label)
 	}
 	fmt.Printf("access")
-
 	if opt.printRate {
-		fmt.Println("   (rate)")
-	} else {
-		fmt.Println("")
+		fmt.Printf("   (rate)")
 	}
+	for i, label := range opt.sumLabels {
+		fmt.Printf("  %-*s", width[i], "sum("+label+")")
+	}
+	fmt.Println("")
 
 	fmt.Println(separator)
 
-	firstField := accs[0].fields[0]
-	for _, acc := range accs {
+	firstField := acc.keys[0].fields[0]
+	for _, key := range acc.keys {
 		// print separator
-		if opt.printSeparator && firstField != acc.fields[0] {
+		if opt.printSeparator && firstField != key.fields[0] {
 			fmt.Println(separator)
-			firstField = acc.fields[0]
+			firstField = key.fields[0]
 		}
 
-		// print values
-		for i, f := range acc.fields {
+		// print key
+		for i, f := range key.fields {
 			if len(f) == 0 {
 				fmt.Printf("%-*s  ", width[i], "*")
 			} else {
 				fmt.Printf("%-*s  ", width[i], f)
 			}
 		}
-		fmt.Printf("%6d", countLabels[acc.index])
 
+		fmt.Printf("%6d", acc.counts[key.index])
 		if opt.printRate {
-			rate := float64(countLabels[acc.index]) / float64(totals[acc.fields[0]]) * 100.0
+			rate := float64(acc.counts[key.index]) / float64(totals[key.fields[0]]) * 100.0
 			fmt.Printf("  %6.2f%%", rate)
+		}
+
+		for i, _ := range opt.sumLabels {
+			fmt.Printf("  %*d", widthSums[i], acc.sums[key.index][i])
 		}
 
 		fmt.Println("")
 	}
 }
 
-var opt Options
-
 func main() {
+	var opt Options
 	opt.Load()
 
 	sigc := make(chan os.Signal, 1)
