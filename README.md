@@ -1,6 +1,7 @@
 # alstat
 
 [![CircleCI](https://circleci.com/gh/krtx/alstat.svg?style=svg)](https://circleci.com/gh/krtx/alstat)
+[![Build Status](http://localhost:8000/api/badges/krtx/alstat/status.svg)](http://localhost:8000/krtx/alstat)
 
 Provide access summary of your ltsv log file.
 
